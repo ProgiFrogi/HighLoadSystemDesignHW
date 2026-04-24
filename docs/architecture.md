@@ -31,17 +31,17 @@
 
 ### Описание компонентов
 
-| Компонент | Назначение | Технология | Коммуникация |
-|---|---|---|---|
-| **API Gateway / BFF** | Единая внешняя точка входа: auth, rate limit, маршрутизация, REST + WebSocket/SSE для статусов | Go + Envoy/Nginx | sync |
-| **Catalog Service** | Поиск ресторанов, фильтры, меню, availability, ETA read-model | Go | sync |
-| **Order Service** | Корзина, создание заказа, изменение статуса заказа, partner API | Go | sync + async events |
-| **Payment Service** | Создание payment intent, подтверждение оплаты, reconciliation, идемпотентность | Go | sync с PSP + async внутри платформы |
-| **Tracking Service** | Прием статусов и координат от логистики/курьеров, обновление hot state | Go | sync ingest + async fan-out |
-| **Notification Service** | Отправка push/SMS, retry, DLQ, шаблоны сообщений | Go worker | async |
-| **PostgreSQL 16 + PostGIS** | Source of truth для каталога, заказов и платежей | Managed PostgreSQL | sync |
-| **Redis 7** | Корзины, hot cache, GEO cache, rate limit, idempotency keys | Managed Redis | sync |
-| **Kafka / Redpanda** | Надежная доставка доменных событий и буферизация асинхронных сценариев | Kafka-compatible broker | async |
+| Компонент | Назначение | Технология |
+|---|---|---|
+| **API Gateway / BFF** | Единая внешняя точка входа: auth, rate limit, маршрутизация, REST + WebSocket/SSE для статусов | Go + Envoy/Nginx |
+| **Catalog Service** | Поиск ресторанов, фильтры, меню, availability, ETA read-model | Go |
+| **Order Service** | Корзина, создание заказа, изменение статуса заказа, partner API | Go |
+| **Payment Service** | Создание payment intent, подтверждение оплаты, reconciliation, идемпотентность | Go |
+| **Tracking Service** | Прием статусов и координат от логистики/курьеров, обновление hot state | Go |
+| **Notification Service** | Отправка push/SMS, retry, DLQ, шаблоны сообщений | Go worker |
+| **PostgreSQL 16 + PostGIS** | Source of truth для каталога, заказов и платежей | Managed PostgreSQL |
+| **Redis 7** | Корзины, hot cache, GEO cache, rate limit, idempotency keys | Managed Redis |
+| **Kafka / Redpanda** | Надежная доставка доменных событий и буферизация асинхронных сценариев | Kafka-compatible broker |
 
 ### Почему набор компонентов именно такой
 
