@@ -52,7 +52,7 @@
 
 ## 3. Sequence diagrams
 
-### 3.1 Happy path — поиск -> заказ -> оплата
+### 3.1 Happy path - поиск -> заказ -> оплата
 
 ![Happy path](diagrams/sequence-happy-path.png)
 
@@ -64,7 +64,7 @@
 - side effects уходят в события;
 - клиент получает подтверждение сразу после фиксации результата, а не после отправки уведомлений.
 
-### 3.2 Сценарий с ошибкой — таймаут PSP
+### 3.2 Сценарий с ошибкой - таймаут PSP
 
 ![Payment timeout](diagrams/sequence-payment-timeout.png)
 
@@ -78,7 +78,7 @@
 
 Это помогает соблюдать требование «ничего не должно теряться» и не провоцировать двойное списание.
 
-### 3.3 Асинхронный сценарий — статус доставки и уведомление
+### 3.3 Асинхронный сценарий - статус доставки и уведомление
 
 ![Async delivery status](diagrams/sequence-async-delivery-status.png)
 
@@ -95,10 +95,10 @@
 ### Подход к версионированию
 
 - публичный API версионируется через URI: `/api/v1/...`;
-- совместимые изменения — только additive;
-- breaking changes — новая версия (`/api/v2/...`);
+- совместимые изменения - только additive;
+- breaking changes - новая версия (`/api/v2/...`);
 - на старые версии выставляются `Deprecation`/`Sunset` headers;
-- для всех write-endpoints обязателен `X-Request-ID`, а для идемпотентных операций — `Idempotency-Key`.
+- для всех write-endpoints обязателен `X-Request-ID`, а для идемпотентных операций - `Idempotency-Key`.
 
 ---
 
@@ -135,16 +135,16 @@ GET /api/v1/restaurants/search?lat=55.75&lon=37.62&q=sushi&cuisine=japanese&sort
 
 **Errors:**
 
-- `400` — некорректные координаты / query params
-- `401` — пользователь не авторизован
-- `429` — rate limit exceeded
-- `503` — каталог временно недоступен
+- `400` - некорректные координаты / query params
+- `401` - пользователь не авторизован
+- `429` - rate limit exceeded
+- `503` - каталог временно недоступен
 
 ---
 
 ### 4.2 `GET /api/v1/restaurants/{restaurant_id}/menu`
 
-**Описание:** получить меню ресторана и текущую доступность блюд.
+**Описание:** получить меню ресторана
 
 **Response 200:**
 
@@ -167,9 +167,9 @@ GET /api/v1/restaurants/search?lat=55.75&lon=37.62&q=sushi&cuisine=japanese&sort
 
 **Errors:**
 
-- `404` — ресторан не найден
-- `409` — ресторан временно закрыт
-- `503` — сервис меню недоступен
+- `404` - ресторан не найден
+- `409` - ресторан временно закрыт
+- `503` - сервис меню недоступен
 
 ---
 
@@ -218,12 +218,12 @@ Idempotency-Key: 0bf2f0ee-68c3-4b60-b0dc-ec9e4099f5ab
 
 **Errors:**
 
-- `400` — невалидный request
-- `404` — ресторан или блюдо не найдены
-- `409` — ресторан закрыт / позиция недоступна / заказ уже создан по тому же idempotency key
-- `422` — промокод невалиден
-- `429` — слишком много запросов
-- `503` — Order Service временно недоступен
+- `400` - невалидный request
+- `404` - ресторан или блюдо не найдены
+- `409` - ресторан закрыт / позиция недоступна / заказ уже создан по тому же idempotency key
+- `422` - промокод невалиден
+- `429` - слишком много запросов
+- `503` - Order Service временно недоступен
 
 ---
 
@@ -270,11 +270,11 @@ Idempotency-Key: 50db7b64-daa0-4d48-8ff9-0b90f687bd3b
 
 **Errors:**
 
-- `400` — невалидный request
-- `404` — заказ не найден
-- `409` — заказ уже оплачен / запрещенный переход статуса
-- `422` — карта отклонена
-- `503` — PSP или Payment Service временно недоступен
+- `400` - невалидный request
+- `404` - заказ не найден
+- `409` - заказ уже оплачен / запрещенный переход статуса
+- `422` - карта отклонена
+- `503` - PSP или Payment Service временно недоступен
 
 ---
 
@@ -304,11 +304,11 @@ Idempotency-Key: 50db7b64-daa0-4d48-8ff9-0b90f687bd3b
 
 **Errors:**
 
-- `401` — не авторизован
-- `403` — заказ принадлежит другому пользователю
-- `404` — заказ не найден
-- `429` — rate limit exceeded
-- `503` — статус временно недоступен
+- `401` - не авторизован
+- `403` - заказ принадлежит другому пользователю
+- `404` - заказ не найден
+- `429` - rate limit exceeded
+- `503` - статус временно недоступен
 
 ## 5. Выбор БД и модель данных
 
@@ -319,21 +319,22 @@ Idempotency-Key: 50db7b64-daa0-4d48-8ff9-0b90f687bd3b
 **Почему:**
 
 - ACID-транзакции для заказов и платежей;
-- удобные связи `restaurant -> menu_item -> order -> payment`;
+- удобные связи `restaurant -> menu_item`,`order->menu_item`, `order -> payment`;
 - geospatial поиск по координатам и зонам доставки;
 - одна основная БД дешевле и проще в эксплуатации, чем набор узкоспециализированных хранилищ.
+- Большие объемы информации
 
 **Паттерн доступа:**
 
 - критичные sync write'ы;
 - чтение карточек ресторана и меню;
 - partner/admin запросы с фильтрацией по статусу и времени.
-
+- read реплики
 #### Redis 7
 
 **Почему:**
 
-- очень быстрый hot-path доступ для корзины, статуса заказа и идемпотентности;
+- очень быстрый доступ для корзины, статуса заказа и идемпотентности;
 - TTL естественно подходит для сессионных данных и короткоживущих ключей;
 - GEO помогает хранить последнюю точку курьера.
 
@@ -367,9 +368,9 @@ Idempotency-Key: 50db7b64-daa0-4d48-8ff9-0b90f687bd3b
 - **Основные поля:** `name`, `status`, `cuisine`, `rating`, `delivery_eta_min`, `location geography(Point,4326)`
 - **Индексы:**
   - `PRIMARY KEY (restaurant_id)`
-  - `GIN (name gin_trgm_ops)` — быстрый поиск по названию
-  - `GiST (location)` — поиск по расстоянию
-  - `BTREE (status, cuisine)` — фильтрация по кухне и доступности
+  - `GIN (name gin_trgm_ops)` - быстрый поиск по названию
+  - `GiST (location)` - поиск по расстоянию
+  - `BTREE (status, cuisine)` - фильтрация по кухне и доступности
 - **Оценка объема:** ~20k записей на старте; ~22k через год
 
 #### 2. `menu_items`
@@ -380,8 +381,8 @@ Idempotency-Key: 50db7b64-daa0-4d48-8ff9-0b90f687bd3b
 - **Основные поля:** `name`, `price`, `category`, `is_available`, `updated_at`
 - **Индексы:**
   - `PRIMARY KEY (menu_item_id)`
-  - `BTREE (restaurant_id, is_available)` — загрузка меню ресторана
-  - `GIN (name gin_trgm_ops)` — поиск по блюдам при необходимости
+  - `BTREE (restaurant_id, is_available)` - загрузка меню ресторана
+  - `GIN (name gin_trgm_ops)` - поиск по блюдам при необходимости
 - **Оценка объема:** ~1,000,000 записей (20k ресторанов * 50 позиций)
 
 #### 3. `orders`
@@ -392,9 +393,9 @@ Idempotency-Key: 50db7b64-daa0-4d48-8ff9-0b90f687bd3b
 - **Основные поля:** `status`, `total_amount`, `delivery_address_jsonb`, `payment_method`, `created_at`
 - **Индексы:**
   - `PRIMARY KEY (order_id)`
-  - `BTREE (user_id, created_at DESC)` — история заказов пользователя
-  - `BTREE (restaurant_id, created_at DESC)` — заказы ресторана
-  - `BTREE (status, created_at DESC)` — выборка активных заказов
+  - `BTREE (user_id, created_at DESC)` - история заказов пользователя
+  - `BTREE (restaurant_id, created_at DESC)` - заказы ресторана
+  - `BTREE (status, created_at DESC)` - выборка активных заказов
   - партиционирование по месяцу `created_at`
 - **Оценка объема:** планирование на **0.8–1.0 млн заказов/день**, то есть ~292–365 млн записей в год
 
@@ -406,8 +407,8 @@ Idempotency-Key: 50db7b64-daa0-4d48-8ff9-0b90f687bd3b
 - **Основные поля:** `menu_item_id`, `quantity`, `price_snapshot`, `name_snapshot`
 - **Индексы:**
   - `PRIMARY KEY (order_id, line_no)`
-  - `BTREE (menu_item_id)` — аналитика и расследование инцидентов
-- **Оценка объема:** при среднем чеке в 4 позиции — ~1.2–1.5 млрд строк в год
+  - `BTREE (menu_item_id)` - аналитика и расследование инцидентов
+- **Оценка объема:** при среднем чеке в 4 позиции - ~1.2–1.5 млрд строк в год
 
 #### 5. `payments`
 
@@ -417,32 +418,25 @@ Idempotency-Key: 50db7b64-daa0-4d48-8ff9-0b90f687bd3b
 - **Основные поля:** `status`, `provider`, `provider_payment_id`, `amount`, `attempt_no`, `idempotency_key`, `created_at`, `confirmed_at`
 - **Индексы:**
   - `PRIMARY KEY (payment_id)`
-  - `UNIQUE (idempotency_key)` — защита от дублей
-  - `UNIQUE (provider, provider_payment_id)` — дедупликация callback/повторов
-  - `BTREE (order_id, created_at DESC)` — все попытки по заказу
-  - `BTREE (status, created_at DESC)` — reconciliation и support tooling
+  - `UNIQUE (idempotency_key)` - защита от дублей
+  - `UNIQUE (provider, provider_payment_id)` - дедупликация callback/повторов
+  - `BTREE (order_id, created_at DESC)` - все попытки по заказу
+  - `BTREE (status, created_at DESC)` - reconciliation и support tooling
   - партиционирование по месяцу `created_at`
 - **Оценка объема:** сопоставим с количеством заказов, в worst case до ~365 млн записей в год
 
 ### 5.3 Ключи в Redis
 
-> В задание просят 3–5 основных сущностей, поэтому ниже — не full data model, а operational keys.
+> В задание просили 3-5 основных сущностей, поэтому ниже - не full data model, а operational keys.
 
-- `cart:{user_id}` — корзина пользователя, TTL 7 дней
-- `idem:{idempotency_key}` — результат write-запроса, TTL 24 часа
-- `order_status:{order_id}` — горячий статус заказа, TTL 24 часа
-- `courier_last_pos:{courier_id}` — последняя GEO-точка курьера, TTL 2 часа
-- `rate_limit:{subject}` — счетчик лимита запросов, TTL 1 минута
+- `cart:{user_id}` - корзина пользователя, TTL 24 часа
+- `idem:{idempotency_key}` - результат write-запроса, TTL 24 часа
+- `order_status:{order_id}` - горячий статус заказа, TTL 1 час
+- `courier_last_pos:{courier_id}` - последняя GEO-точка курьера, TTL 10 минут
+- `rate_limit:{subject}` - счетчик лимита запросов, TTL 1 минута
 
 ## 6. ADR
 
 - [ADR-001: гибрид SBA + EDA](adr/001-hybrid-sba-eda.md)
 - [ADR-002: PostgreSQL + PostGIS на Day 1](adr/002-postgres-postgis-day1.md)
 - [ADR-003: idempotency + transactional outbox](adr/003-idempotency-outbox.md)
-
-## 7. Что можно улучшить на следующей итерации
-
-1. Добавить отдельный search-движок (OpenSearch), если p99 поиска начнет упираться в PostgreSQL.
-2. Вынести media storage/CDN для фотографий меню в явный отдельный контейнер и схему кэширования.
-3. Добавить отдельный read-model / materialized view для ETA и availability.
-4. Ввести ClickHouse для аналитики и дешевого хранения событий, если это потребуется в ДЗ 4.
