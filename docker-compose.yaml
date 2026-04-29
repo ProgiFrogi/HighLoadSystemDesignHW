@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:1.25-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./services/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - catalog-service
+      - order-service
+    networks:
+      - foodnet
+    deploy:
+      resources:
+        limits:
+          cpus: "0.30"
+          memory: 128M
+    restart: unless-stopped
+
+  catalog-service:
+    build:
+      context: ./services/catalog
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgres://fooduser:foodpass@postgres:5432/fooddelivery?sslmode=disable
+      - REDIS_URL=redis:6379
+      - SERVER_PORT=8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - foodnet
+    deploy:
+      resources:
+        limits:
+          cpus: "0.60"
+          memory: 300M
+    restart: unless-stopped
+
+  order-service:
+    build:
+      context: ./services/order
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgres://fooduser:foodpass@postgres:5432/fooddelivery?sslmode=disable
+      - REDIS_URL=redis:6379
+      - CATALOG_SERVICE_URL=http://catalog-service:8081
+      - SERVER_PORT=8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      catalog-service:
+        condition: service_started
+    networks:
+      - foodnet
+    deploy:
+      resources:
+        limits:
+          cpus: "0.60"
+          memory: 300M
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=fooduser
+      - POSTGRES_PASSWORD=foodpass
+      - POSTGRES_DB=fooddelivery
+    volumes:
+      - ./services/initdb:/docker-entrypoint-initdb.d
+      - pgdata:/var/lib/postgresql/data
+    command: >
+      postgres -c shared_buffers=128MB -c effective_cache_size=256MB -c random_page_cost=1.5 -c max_connections=50 -c log_min_duration_statement=1000
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U fooduser -d fooddelivery" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - foodnet
+    deploy:
+      resources:
+        limits:
+          cpus: "0.70"
+          memory: 400M
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 80mb --maxmemory-policy allkeys-lru --save ""
+    networks:
+      - foodnet
+    deploy:
+      resources:
+        limits:
+          cpus: "0.20"
+          memory: 128M
+    restart: unless-stopped
+
+networks:
+  foodnet:
+    driver: bridge
+
+volumes:
+  pgdata:
