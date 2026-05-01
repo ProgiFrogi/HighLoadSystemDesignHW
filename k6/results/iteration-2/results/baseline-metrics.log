@@ -1,0 +1,198 @@
+=== START Fri May  1 11:25:17 UTC 2026 ===
+--- Minute 1 (11:25:17) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             5.36%     3.305MiB / 128MiB
+highloadsystemdesignhw-order-service-1     7.21%     13.6MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   6.57%     15.32MiB / 300MiB
+highloadsystemdesignhw-postgres-1          10.34%    94.42MiB / 400MiB
+highloadsystemdesignhw-redis-1             1.97%     6.367MiB / 128MiB
+--- Minute 2 (11:25:49) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             10.26%    4.715MiB / 128MiB
+highloadsystemdesignhw-order-service-1     12.96%    18.92MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   13.06%    15.21MiB / 300MiB
+highloadsystemdesignhw-postgres-1          16.27%    125MiB / 400MiB
+highloadsystemdesignhw-redis-1             2.36%     9.453MiB / 128MiB
+--- Minute 3 (11:26:21) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             17.12%    5.914MiB / 128MiB
+highloadsystemdesignhw-order-service-1     21.41%    22.89MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   21.61%    17.12MiB / 300MiB
+highloadsystemdesignhw-postgres-1          28.34%    145.1MiB / 400MiB
+highloadsystemdesignhw-redis-1             3.79%     13.96MiB / 128MiB
+--- Minute 4 (11:26:52) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             15.22%    6.609MiB / 128MiB
+highloadsystemdesignhw-order-service-1     19.41%    24.29MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   20.02%    18.19MiB / 300MiB
+highloadsystemdesignhw-postgres-1          25.35%    160.5MiB / 400MiB
+highloadsystemdesignhw-redis-1             3.49%     19.86MiB / 128MiB
+--- Minute 5 (11:27:23) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             21.68%    7.359MiB / 128MiB
+highloadsystemdesignhw-order-service-1     25.27%    25.33MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   27.53%    18.86MiB / 300MiB
+highloadsystemdesignhw-postgres-1          33.14%    177.8MiB / 400MiB
+highloadsystemdesignhw-redis-1             4.66%     25.23MiB / 128MiB
+--- Minute 6 (11:27:54) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             18.50%    7.602MiB / 128MiB
+highloadsystemdesignhw-order-service-1     21.20%    25.79MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   22.20%    19.18MiB / 300MiB
+highloadsystemdesignhw-postgres-1          28.07%    195MiB / 400MiB
+highloadsystemdesignhw-redis-1             4.10%     31.04MiB / 128MiB
+--- Minute 7 (11:28:26) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             21.84%    7.645MiB / 128MiB
+highloadsystemdesignhw-order-service-1     28.19%    25.36MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   28.34%    19.16MiB / 300MiB
+highloadsystemdesignhw-postgres-1          35.72%    211.8MiB / 400MiB
+highloadsystemdesignhw-redis-1             4.91%     38.94MiB / 128MiB
+--- Minute 8 (11:28:57) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             24.62%    7.918MiB / 128MiB
+highloadsystemdesignhw-order-service-1     26.91%    25.82MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   28.48%    20MiB / 300MiB
+highloadsystemdesignhw-postgres-1          38.20%    228.8MiB / 400MiB
+highloadsystemdesignhw-redis-1             4.96%     44.81MiB / 128MiB
+--- Minute 9 (11:29:28) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             23.23%    7.883MiB / 128MiB
+highloadsystemdesignhw-order-service-1     29.36%    26.71MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   28.28%    20.44MiB / 300MiB
+highloadsystemdesignhw-postgres-1          39.67%    245.8MiB / 400MiB
+highloadsystemdesignhw-redis-1             5.28%     50.63MiB / 128MiB
+--- Minute 10 (11:29:59) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             25.34%    7.871MiB / 128MiB
+highloadsystemdesignhw-order-service-1     30.54%    27.84MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   30.63%    20.2MiB / 300MiB
+highloadsystemdesignhw-postgres-1          40.12%    248.4MiB / 400MiB
+highloadsystemdesignhw-redis-1             5.67%     56.56MiB / 128MiB
+--- Minute 11 (11:30:31) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             25.89%    7.895MiB / 128MiB
+highloadsystemdesignhw-order-service-1     28.03%    26.32MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   26.98%    19.71MiB / 300MiB
+highloadsystemdesignhw-postgres-1          35.93%    249.2MiB / 400MiB
+highloadsystemdesignhw-redis-1             5.12%     70.15MiB / 128MiB
+--- Minute 12 (11:31:02) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             23.57%    8.062MiB / 128MiB
+highloadsystemdesignhw-order-service-1     28.68%    28.39MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   32.22%    20.32MiB / 300MiB
+highloadsystemdesignhw-postgres-1          38.27%    249.7MiB / 400MiB
+highloadsystemdesignhw-redis-1             5.28%     71.76MiB / 128MiB
+--- Minute 13 (11:31:33) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             23.76%    8.398MiB / 128MiB
+highloadsystemdesignhw-order-service-1     28.92%    27MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   27.87%    20.08MiB / 300MiB
+highloadsystemdesignhw-postgres-1          35.65%    249.8MiB / 400MiB
+highloadsystemdesignhw-redis-1             5.01%     77.88MiB / 128MiB
+--- Minute 14 (11:32:04) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             8.37%     7.98MiB / 128MiB
+highloadsystemdesignhw-order-service-1     11.28%    27.94MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   9.93%     20.77MiB / 300MiB
+highloadsystemdesignhw-postgres-1          14.95%    287.7MiB / 400MiB
+highloadsystemdesignhw-redis-1             2.27%     81.92MiB / 128MiB
+--- Minute 15 (11:32:36) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             20.66%    8.262MiB / 128MiB
+highloadsystemdesignhw-order-service-1     27.82%    29.61MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   24.60%    20.94MiB / 300MiB
+highloadsystemdesignhw-postgres-1          32.82%    271.9MiB / 400MiB
+highloadsystemdesignhw-redis-1             5.13%     83.01MiB / 128MiB
+--- Minute 16 (11:33:07) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             4.50%     7.742MiB / 128MiB
+highloadsystemdesignhw-order-service-1     8.04%     29.5MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   6.40%     19.71MiB / 300MiB
+highloadsystemdesignhw-postgres-1          9.52%     308.9MiB / 400MiB
+highloadsystemdesignhw-redis-1             1.48%     83.05MiB / 128MiB
+--- Minute 17 (11:33:38) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             22.42%    8.52MiB / 128MiB
+highloadsystemdesignhw-order-service-1     29.68%    30.74MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   28.49%    20.83MiB / 300MiB
+highloadsystemdesignhw-postgres-1          39.53%    295.8MiB / 400MiB
+highloadsystemdesignhw-redis-1             6.29%     83.09MiB / 128MiB
+--- Minute 18 (11:34:09) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             29.63%    8.879MiB / 128MiB
+highloadsystemdesignhw-order-service-1     31.28%    29.38MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   30.49%    21.13MiB / 300MiB
+highloadsystemdesignhw-postgres-1          40.33%    295.8MiB / 400MiB
+highloadsystemdesignhw-redis-1             6.03%     83.07MiB / 128MiB
+--- Minute 19 (11:34:41) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             20.95%    8.797MiB / 128MiB
+highloadsystemdesignhw-order-service-1     26.19%    30.08MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   26.81%    20.25MiB / 300MiB
+highloadsystemdesignhw-postgres-1          34.07%    297.8MiB / 400MiB
+highloadsystemdesignhw-redis-1             4.94%     83.06MiB / 128MiB
+--- Minute 20 (11:35:12) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             4.01%     7.707MiB / 128MiB
+highloadsystemdesignhw-order-service-1     4.88%     29.84MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   6.15%     19.7MiB / 300MiB
+highloadsystemdesignhw-postgres-1          11.47%    303.8MiB / 400MiB
+highloadsystemdesignhw-redis-1             1.13%     83.01MiB / 128MiB
+--- Minute 21 (11:35:43) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             17.26%    8.312MiB / 128MiB
+highloadsystemdesignhw-order-service-1     23.53%    30.79MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   23.92%    20.52MiB / 300MiB
+highloadsystemdesignhw-postgres-1          32.79%    298.9MiB / 400MiB
+highloadsystemdesignhw-redis-1             4.30%     83.03MiB / 128MiB
+--- Minute 22 (11:36:14) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             29.35%    9.086MiB / 128MiB
+highloadsystemdesignhw-order-service-1     14.84%    29.62MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   12.48%    20.63MiB / 300MiB
+highloadsystemdesignhw-postgres-1          19.09%    297.7MiB / 400MiB
+highloadsystemdesignhw-redis-1             2.75%     83.05MiB / 128MiB
+--- Minute 23 (11:36:46) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             6.08%     8.301MiB / 128MiB
+highloadsystemdesignhw-order-service-1     7.39%     30.29MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   8.29%     20.34MiB / 300MiB
+highloadsystemdesignhw-postgres-1          12.76%    306MiB / 400MiB
+highloadsystemdesignhw-redis-1             1.51%     83MiB / 128MiB
+--- Minute 24 (11:37:17) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             16.27%    8.27MiB / 128MiB
+highloadsystemdesignhw-order-service-1     21.17%    31.17MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   22.34%    20.81MiB / 300MiB
+highloadsystemdesignhw-postgres-1          29.48%    310.6MiB / 400MiB
+highloadsystemdesignhw-redis-1             4.13%     83.09MiB / 128MiB
+--- Minute 25 (11:37:48) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             21.39%    7.359MiB / 128MiB
+highloadsystemdesignhw-order-service-1     27.90%    28.95MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   28.75%    20.78MiB / 300MiB
+highloadsystemdesignhw-postgres-1          35.91%    309.1MiB / 400MiB
+highloadsystemdesignhw-redis-1             5.38%     83.14MiB / 128MiB
+--- Minute 26 (11:38:19) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             19.95%    7.133MiB / 128MiB
+highloadsystemdesignhw-order-service-1     24.79%    25.39MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   27.41%    20.54MiB / 300MiB
+highloadsystemdesignhw-postgres-1          34.83%    308.7MiB / 400MiB
+highloadsystemdesignhw-redis-1             4.85%     83.04MiB / 128MiB
+--- Minute 27 (11:38:51) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             2.55%     6.395MiB / 128MiB
+highloadsystemdesignhw-order-service-1     4.13%     24.87MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   3.87%     20.4MiB / 300MiB
+highloadsystemdesignhw-postgres-1          4.65%     312.6MiB / 400MiB
+highloadsystemdesignhw-redis-1             0.84%     82.99MiB / 128MiB
+--- Minute 28 (11:39:22) ---
+NAME                                       CPU %     MEM USAGE / LIMIT
+highloadsystemdesignhw-nginx-1             0.00%     4.289MiB / 128MiB
+highloadsystemdesignhw-order-service-1     0.16%     24.56MiB / 300MiB
+highloadsystemdesignhw-catalog-service-1   0.00%     20.22MiB / 300MiB
+highloadsystemdesignhw-postgres-1          1.57%     324.6MiB / 400MiB
+highloadsystemdesignhw-redis-1             0.26%     83.01MiB / 128MiB
+=== END Fri May  1 11:39:53 UTC 2026 ===
