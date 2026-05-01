@@ -72,8 +72,8 @@ cd HighLoadSystemDesignHW
 docker compose up -d
 sleep 30
 # На vm'ке тестируем
-curl http://localhost/health → {"status":"ok"}
-curl http://localhost/api/v1/restaurants/search?cuisine=japanese → 200 OK
+curl http://localhost/health # {"status":"ok"}
+curl http://localhost/api/v1/restaurants/search?cuisine=japanese # 200 OK
 ```
 
 
