@@ -1,55 +1,74 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
-	"math"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"github.com/sony/gobreaker"
 )
 
 var (
-	db  *pgxpool.Pool
-	rdb *redis.Client
+	db                *pgxpool.Pool
+	rdb               *redis.Client
+	catalogBreaker    *gobreaker.CircuitBreaker
+	httpClient        *http.Client
+	catalogServiceURL string
 )
 
-type Restaurant struct {
-	ID       string  `json:"restaurant_id"`
-	Name     string  `json:"name"`
-	Rating   float64 `json:"rating"`
-	Cuisine  string  `json:"cuisine"`
-	Distance float64 `json:"distance_meters,omitempty"`
-	IsOpen   bool    `json:"is_open"`
+type CreateOrderRequest struct {
+	RestaurantID string        `json:"restaurant_id"`
+	Items        []OrderItemReq `json:"items"`
+	DeliveryAddr *DeliveryAddr `json:"delivery_address,omitempty"`
+}
+
+type OrderItemReq struct {
+	MenuItemID string `json:"menu_item_id"`
+	Quantity   int    `json:"quantity"`
+}
+
+type DeliveryAddr struct {
+	City   string  `json:"city"`
+	Street string  `json:"street"`
+	Lat    float64 `json:"lat"`
+	Lon    float64 `json:"lon"`
+}
+
+type OrderResponse struct {
+	OrderID     string `json:"order_id"`
+	Status      string `json:"status"`
+	TotalAmount int    `json:"total_amount"`
+	CreatedAt   string `json:"created_at"`
+}
+
+type OrderStatusResponse struct {
+	OrderID string          `json:"order_id"`
+	Status  string          `json:"status"`
+	Items   []OrderItemResp `json:"items"`
+}
+
+type OrderItemResp struct {
+	MenuItemID string `json:"menu_item_id"`
+	Name       string `json:"name"`
+	Quantity   int    `json:"quantity"`
+	Price      int    `json:"price"`
 }
 
 type MenuItem struct {
 	ID          string `json:"menu_item_id"`
 	Name        string `json:"name"`
 	Price       int    `json:"price"`
-	Category    string `json:"category"`
 	IsAvailable bool   `json:"is_available"`
-}
-
-type MenuResponse struct {
-	RestaurantID string     `json:"restaurant_id"`
-	Name         string     `json:"name"`
-	Items        []MenuItem `json:"items"`
-}
-
-type SearchResponse struct {
-	Items  []Restaurant `json:"items"`
-	Total  int          `json:"total"`
-	Limit  int          `json:"limit"`
-	Offset int          `json:"offset"`
 }
 
 func main() {
@@ -64,8 +83,8 @@ func main() {
 	if err != nil {
 		log.Fatal("Unable to parse database URL:", err)
 	}
-	config.MaxConns = 2
-	config.MinConns = 1
+	config.MaxConns = 15
+	config.MinConns = 5
 	config.MaxConnLifetime = 30 * time.Minute
 
 	db, err = pgxpool.NewWithConfig(ctx, config)
@@ -88,14 +107,43 @@ func main() {
 		Addr:         redisURL,
 		Password:     "",
 		DB:           0,
-		PoolSize:     2,
-		MinIdleConns: 1,
-		MaxRetries:   1,
+		PoolSize:     10,
+		MinIdleConns: 5,
 	})
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
-		log.Println("Warning: Redis not available, continuing without cache")
+		log.Println("Warning: Redis not available")
 	}
+
+	catalogServiceURL = os.Getenv("CATALOG_SERVICE_URL")
+	if catalogServiceURL == "" {
+		catalogServiceURL = "http://localhost:8081"
+	}
+
+	httpClient = &http.Client{
+		Timeout: 3 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        20,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     30 * time.Second,
+		},
+	}
+
+	catalogBreaker = gobreaker.NewCircuitBreaker(gobreaker.Settings{
+		Name:        "catalog-service",
+		MaxRequests: 5,
+		Interval:    10 * time.Second,
+		Timeout:     5 * time.Second,
+		ReadyToTrip: func(counts gobreaker.Counts) bool {
+			failureRatio := float64(counts.TotalFailures) / float64(counts.Requests)
+			return counts.Requests >= 10 && failureRatio >= 0.5
+		},
+		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
+			log.Printf("Circuit Breaker '%s' changed from %s to %s", name, from, to)
+		},
+	})
+
+	go startOutboxWorker()
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -108,171 +156,306 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":    "ok",
-			"service":   "catalog",
+			"service":   "order",
 			"timestamp": time.Now().UTC(),
 		})
 	})
 
-	r.Get("/api/v1/restaurants/{restaurantID}/menu", getMenu)
-	r.Get("/api/v1/restaurants/search", searchRestaurants)
+	r.Post("/api/v1/orders", createOrder)
+	r.Get("/api/v1/orders/{orderID}", getOrderStatus)
 
 	port := os.Getenv("SERVER_PORT")
 	if port == "" {
-		port = "8081"
+		port = "8082"
 	}
 
-	log.Printf("Catalog service starting on :%s", port)
+	log.Printf("Order service starting on :%s", port)
 	log.Fatal(http.ListenAndServe(":"+port, r))
 }
 
-func getMenu(w http.ResponseWriter, r *http.Request) {
-	restaurantID := chi.URLParam(r, "restaurantID")
-	ctx := r.Context()
+func validateMenuItems(ctx context.Context, restaurantID string, items []OrderItemReq) (map[string]MenuItem, error) {
+	body, err := catalogBreaker.Execute(func() (interface{}, error) {
+		reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
 
-	// Iter0: БЕЗ КЕША — сразу в БД
-	var menu MenuResponse
-	err := db.QueryRow(ctx,
-		`SELECT restaurant_id, name FROM restaurants WHERE restaurant_id = $1 AND is_open = true`,
-		restaurantID,
-	).Scan(&menu.RestaurantID, &menu.Name)
+		req, err := http.NewRequestWithContext(reqCtx, "GET",
+			catalogServiceURL+"/api/v1/restaurants/"+restaurantID+"/menu", nil)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("catalog returned %d", resp.StatusCode)
+		}
+
+		return io.ReadAll(resp.Body)
+	})
 
 	if err != nil {
+		return nil, fmt.Errorf("catalog service unavailable: %w", err)
+	}
+
+	var menu struct {
+		Items []MenuItem `json:"items"`
+	}
+	if err := json.Unmarshal(body.([]byte), &menu); err != nil {
+		return nil, fmt.Errorf("failed to parse menu: %w", err)
+	}
+
+	availableItems := make(map[string]MenuItem)
+	for _, item := range menu.Items {
+		availableItems[item.ID] = item
+	}
+
+	return availableItems, nil
+}
+
+func createOrder(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req CreateOrderRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":   "invalid_request",
+			"message": "Невалидный JSON в теле запроса",
+		})
+		return
+	}
+
+	if req.RestaurantID == "" || len(req.Items) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":   "validation_error",
+			"message": "restaurant_id и items обязательны",
+		})
+		return
+	}
+
+	idemKey := r.Header.Get("Idempotency-Key")
+	if idemKey == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":   "missing_idempotency_key",
+			"message": "Заголовок Idempotency-Key обязателен",
+		})
+		return
+	}
+
+	var existingOrder OrderResponse
+	err := db.QueryRow(ctx,
+		`SELECT order_id, status, total_amount, created_at 
+		 FROM orders WHERE idempotency_key = $1`,
+		idemKey,
+	).Scan(&existingOrder.OrderID, &existingOrder.Status, &existingOrder.TotalAmount, &existingOrder.CreatedAt)
+
+	if err == nil {
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Idempotency-Replay", "true")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(existingOrder)
+		return
+	}
+
+	availableItems, err := validateMenuItems(ctx, req.RestaurantID, req.Items)
+	if err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":   "catalog_unavailable",
+			"message": "Сервис каталога временно недоступен: " + err.Error(),
+		})
+		return
+	}
+
+	totalAmount := 0
+	for _, item := range req.Items {
+		menuItem, exists := availableItems[item.MenuItemID]
+		if !exists || !menuItem.IsAvailable {
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":   "item_unavailable",
+				"message": fmt.Sprintf("Блюдо %s недоступно", item.MenuItemID),
+			})
+			return
+		}
+		totalAmount += menuItem.Price * item.Quantity
+	}
+
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		log.Printf("Error beginning transaction: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	deliveryAddr := `{"city":"","street":""}`
+	if req.DeliveryAddr != nil {
+		deliveryAddr = fmt.Sprintf(`{"city":"%s","street":"%s"}`,
+			req.DeliveryAddr.City, req.DeliveryAddr.Street)
+	}
+
+	var orderID string
+	var createdAt time.Time
+	err = tx.QueryRow(ctx,
+		`INSERT INTO orders (restaurant_id, user_id, status, total_amount, idempotency_key, delivery_address)
+		 VALUES ($1, $2, 'created', $3, $4, $5)
+		 RETURNING order_id, created_at`,
+		req.RestaurantID,
+		"00000000-0000-0000-0000-000000000001",
+		totalAmount,
+		idemKey,
+		deliveryAddr,
+	).Scan(&orderID, &createdAt)
+
+	if err != nil {
+		log.Printf("Error inserting order: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	for _, item := range req.Items {
+		menuItem := availableItems[item.MenuItemID]
+		_, err = tx.Exec(ctx,
+			`INSERT INTO order_items (order_id, menu_item_id, quantity, price_snapshot, name_snapshot)
+			 VALUES ($1, $2, $3, $4, $5)`,
+			orderID, item.MenuItemID, item.Quantity, menuItem.Price, menuItem.Name,
+		)
+		if err != nil {
+			log.Printf("Error inserting order item: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+
+	outboxPayload, _ := json.Marshal(map[string]interface{}{
+		"order_id":      orderID,
+		"restaurant_id": req.RestaurantID,
+		"total_amount":  totalAmount,
+		"items":         req.Items,
+	})
+
+	_, err = tx.Exec(ctx,
+		`INSERT INTO outbox_events (aggregate_id, event_type, payload)
+		 VALUES ($1, 'OrderCreated', $2)`,
+		orderID, outboxPayload,
+	)
+	if err != nil {
+		log.Printf("Error inserting outbox event: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	order := OrderResponse{
+		OrderID:     orderID,
+		Status:      "created",
+		TotalAmount: totalAmount,
+		CreatedAt:   createdAt.Format(time.RFC3339),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(order)
+}
+
+func getOrderStatus(w http.ResponseWriter, r *http.Request) {
+	orderID := chi.URLParam(r, "orderID")
+	ctx := r.Context()
+
+	var order OrderStatusResponse
+	err := db.QueryRow(ctx,
+		`SELECT order_id, status FROM orders WHERE order_id = $1`,
+		orderID,
+	).Scan(&order.OrderID, &order.Status)
+
+	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]string{
-			"error":   "restaurant_not_found",
-			"message": "Ресторан не найден или временно закрыт",
+			"error":   "order_not_found",
+			"message": "Заказ не найден",
 		})
 		return
 	}
 
 	rows, err := db.Query(ctx,
-		`SELECT menu_item_id, name, price, category, is_available 
-		 FROM menu_items 
-		 WHERE restaurant_id = $1 AND is_available = true
-		 ORDER BY category, name`,
-		restaurantID,
+		`SELECT menu_item_id, name_snapshot, quantity, price_snapshot
+		 FROM order_items WHERE order_id = $1`,
+		orderID,
 	)
-	if err != nil {
-		log.Printf("Error querying menu: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-
-	menu.Items = make([]MenuItem, 0)
-	for rows.Next() {
-		var item MenuItem
-		if err := rows.Scan(&item.ID, &item.Name, &item.Price, &item.Category, &item.IsAvailable); err != nil {
-			continue
+	if err == nil {
+		defer rows.Close()
+		order.Items = make([]OrderItemResp, 0)
+		for rows.Next() {
+			var item OrderItemResp
+			if err := rows.Scan(&item.MenuItemID, &item.Name, &item.Quantity, &item.Price); err != nil {
+				continue
+			}
+			order.Items = append(order.Items, item)
 		}
-		menu.Items = append(menu.Items, item)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(menu)
+	json.NewEncoder(w).Encode(order)
 }
 
-func searchRestaurants(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+func startOutboxWorker() {
+	log.Println("Starting outbox worker")
+	time.Sleep(5 * time.Second)
 
-	cuisine := r.URL.Query().Get("cuisine")
-	query := r.URL.Query().Get("q")
-	latStr := r.URL.Query().Get("lat")
-	lonStr := r.URL.Query().Get("lon")
-	limitStr := r.URL.Query().Get("limit")
-	offsetStr := r.URL.Query().Get("offset")
+	for {
+		time.Sleep(1 * time.Second)
 
-	limit := 20
-	offset := 0
+		ctx := context.Background()
 
-	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
-		limit = l
-	}
-	if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
-		offset = o
-	}
-
-	baseQuery := `FROM restaurants r WHERE r.is_open = true`
-	args := make([]interface{}, 0)
-	argIdx := 1
-
-	if cuisine != "" {
-		baseQuery += fmt.Sprintf(" AND r.cuisine = $%d", argIdx)
-		args = append(args, cuisine)
-		argIdx++
-	}
-
-	if query != "" {
-		baseQuery += fmt.Sprintf(" AND (r.name ILIKE $%d OR EXISTS (SELECT 1 FROM menu_items mi WHERE mi.restaurant_id = r.restaurant_id AND mi.name ILIKE $%d))", argIdx, argIdx)
-		args = append(args, "%"+query+"%")
-		argIdx++
-	}
-
-	var total int
-	countQuery := fmt.Sprintf("SELECT COUNT(*) %s", baseQuery)
-	err := db.QueryRow(ctx, countQuery, args...).Scan(&total)
-	if err != nil {
-		log.Printf("Error counting restaurants: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	var selectQuery string
-	if latStr != "" && lonStr != "" {
-		lat, err1 := strconv.ParseFloat(latStr, 64)
-		lon, err2 := strconv.ParseFloat(lonStr, 64)
-		if err1 == nil && err2 == nil {
-			selectQuery = fmt.Sprintf(
-				`SELECT r.restaurant_id, r.name, r.rating, r.cuisine, r.is_open,
-				 (6371000 * acos(cos(radians($%d)) * cos(radians(r.lat)) * cos(radians(r.lon) - radians($%d)) + sin(radians($%d)) * sin(radians(r.lat)))) as distance
-				 %s
-				 ORDER BY distance ASC
-				 LIMIT $%d OFFSET $%d`,
-				argIdx, argIdx+1, argIdx, baseQuery, argIdx+2, argIdx+3,
-			)
-			args = append(args, lat, lon, limit, offset)
-		}
-	}
-
-	if selectQuery == "" {
-		selectQuery = fmt.Sprintf(
-			`SELECT r.restaurant_id, r.name, r.rating, r.cuisine, r.is_open, 0 as distance
-			 %s
-			 ORDER BY r.rating DESC
-			 LIMIT $%d OFFSET $%d`,
-			baseQuery, argIdx, argIdx+1,
+		rows, err := db.Query(ctx,
+			`SELECT event_id, event_type, payload 
+			 FROM outbox_events 
+			 WHERE published = false 
+			 ORDER BY created_at ASC 
+			 LIMIT 50`,
 		)
-		args = append(args, limit, offset)
-	}
-
-	rows, err := db.Query(ctx, selectQuery, args...)
-	if err != nil {
-		log.Printf("Error searching restaurants: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-
-	items := make([]Restaurant, 0)
-	for rows.Next() {
-		var rest Restaurant
-		var distance float64
-		if err := rows.Scan(&rest.ID, &rest.Name, &rest.Rating, &rest.Cuisine, &rest.IsOpen, &distance); err != nil {
-			log.Printf("Error scanning: %v", err)
+		if err != nil {
+			log.Printf("Outbox worker error: %v", err)
 			continue
 		}
-		rest.Distance = math.Round(distance*100) / 100
-		items = append(items, rest)
-	}
 
-	response := SearchResponse{
-		Items:  items,
-		Total:  total,
-		Limit:  limit,
-		Offset: offset,
-	}
+		count := 0
+		for rows.Next() {
+			var eventID, eventType string
+			var payload []byte
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+			if err := rows.Scan(&eventID, &eventType, &payload); err != nil {
+				continue
+			}
+
+			var prettyJSON bytes.Buffer
+			json.Indent(&prettyJSON, payload, "", "  ")
+
+			_, err = db.Exec(ctx,
+				`UPDATE outbox_events SET published = true WHERE event_id = $1`,
+				eventID,
+			)
+			if err != nil {
+				continue
+			}
+			count++
+		}
+		rows.Close()
+
+		if count > 0 {
+			log.Printf("Published %d outbox events", count)
+		}
+	}
 }
