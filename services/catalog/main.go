@@ -64,8 +64,8 @@ func main() {
 	if err != nil {
 		log.Fatal("Unable to parse database URL:", err)
 	}
-	config.MaxConns = 15  // Iter1: УВЕЛИЧЕНО с 2 до 15
-	config.MinConns = 5   // Iter1: УВЕЛИЧЕНО с 1 до 5
+	config.MaxConns = 20
+	config.MinConns = 5
 	config.MaxConnLifetime = 30 * time.Minute
 
 	db, err = pgxpool.NewWithConfig(ctx, config)
@@ -88,14 +88,15 @@ func main() {
 		Addr:         redisURL,
 		Password:     "",
 		DB:           0,
-		PoolSize:     10,       // Iter1: УВЕЛИЧЕНО
+		PoolSize:     20,
 		MinIdleConns: 5,
 		MaxRetries:   3,
 	})
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
-		log.Println("Warning: Redis not available, continuing without cache")
+		log.Fatal("Unable to connect to Redis:", err)
 	}
+	log.Println("Connected to Redis")
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -129,9 +130,17 @@ func getMenu(w http.ResponseWriter, r *http.Request) {
 	restaurantID := chi.URLParam(r, "restaurantID")
 	ctx := r.Context()
 
-	// Iter1: БЕЗ КЕША — сразу в БД
+	cacheKey := fmt.Sprintf("menu:%s", restaurantID)
+	cached, err := rdb.Get(ctx, cacheKey).Result()
+	if err == nil {
+		w.Header().Set("X-Cache", "HIT")
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(cached))
+		return
+	}
+
 	var menu MenuResponse
-	err := db.QueryRow(ctx,
+	err = db.QueryRow(ctx,
 		`SELECT restaurant_id, name FROM restaurants WHERE restaurant_id = $1 AND is_open = true`,
 		restaurantID,
 	).Scan(&menu.RestaurantID, &menu.Name)
@@ -169,6 +178,10 @@ func getMenu(w http.ResponseWriter, r *http.Request) {
 		menu.Items = append(menu.Items, item)
 	}
 
+	data, _ := json.Marshal(menu)
+	rdb.Set(ctx, cacheKey, data, 5*time.Minute)
+
+	w.Header().Set("X-Cache", "MISS")
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(menu)
 }
@@ -259,6 +272,7 @@ func searchRestaurants(w http.ResponseWriter, r *http.Request) {
 		var rest Restaurant
 		var distance float64
 		if err := rows.Scan(&rest.ID, &rest.Name, &rest.Rating, &rest.Cuisine, &rest.IsOpen, &distance); err != nil {
+			log.Printf("Error scanning: %v", err)
 			continue
 		}
 		rest.Distance = math.Round(distance*100) / 100
