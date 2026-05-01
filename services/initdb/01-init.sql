@@ -52,18 +52,6 @@ CREATE TABLE IF NOT EXISTS outbox_events (
     published BOOLEAN DEFAULT false
 );
 
--- ====== ИНДЕКСЫ ======
-CREATE INDEX IF NOT EXISTS idx_restaurants_cuisine ON restaurants(cuisine);
-CREATE INDEX IF NOT EXISTS idx_restaurants_name ON restaurants(name);
-CREATE INDEX IF NOT EXISTS idx_restaurants_open ON restaurants(is_open) WHERE is_open = true;
-CREATE INDEX IF NOT EXISTS idx_menu_items_restaurant ON menu_items(restaurant_id, is_available);
-CREATE INDEX IF NOT EXISTS idx_menu_items_name ON menu_items(name);
-CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_orders_restaurant ON orders(restaurant_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_orders_idempotency ON orders(idempotency_key);
-CREATE INDEX IF NOT EXISTS idx_outbox_published ON outbox_events(published, created_at);
-
 -- ====== ТЕСТОВЫЕ ДАННЫЕ ======
 INSERT INTO restaurants (restaurant_id, name, cuisine, lat, lon, rating, is_open) VALUES
     ('a0000000-0000-0000-0000-000000000001', 'Sushi Town', 'japanese', 55.7558, 37.6173, 4.8, true),
