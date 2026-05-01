@@ -83,8 +83,8 @@ func main() {
 	if err != nil {
 		log.Fatal("Unable to parse database URL:", err)
 	}
-	config.MaxConns = 2
-	config.MinConns = 1
+	config.MaxConns = 15
+	config.MinConns = 5
 	config.MaxConnLifetime = 30 * time.Minute
 
 	db, err = pgxpool.NewWithConfig(ctx, config)
@@ -107,8 +107,8 @@ func main() {
 		Addr:         redisURL,
 		Password:     "",
 		DB:           0,
-		PoolSize:     2,
-		MinIdleConns: 1,
+		PoolSize:     10,
+		MinIdleConns: 5,
 	})
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
@@ -121,22 +121,21 @@ func main() {
 	}
 
 	httpClient = &http.Client{
-		Timeout: 2 * time.Second,
+		Timeout: 3 * time.Second,
 		Transport: &http.Transport{
-			MaxIdleConns:        2,
-			MaxIdleConnsPerHost: 2,
+			MaxIdleConns:        20,
+			MaxIdleConnsPerHost: 10,
 			IdleConnTimeout:     30 * time.Second,
 		},
 	}
-
 	catalogBreaker = gobreaker.NewCircuitBreaker(gobreaker.Settings{
 		Name:        "catalog-service",
-		MaxRequests: 1,
+		MaxRequests: 5,
 		Interval:    10 * time.Second,
 		Timeout:     5 * time.Second,
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
 			failureRatio := float64(counts.TotalFailures) / float64(counts.Requests)
-			return counts.Requests >= 2 && failureRatio >= 0.3
+			return counts.Requests >= 10 && failureRatio >= 0.5
 		},
 		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
 			log.Printf("Circuit Breaker '%s' changed from %s to %s", name, from, to)
@@ -175,7 +174,7 @@ func main() {
 
 func validateMenuItems(ctx context.Context, restaurantID string, items []OrderItemReq) (map[string]MenuItem, error) {
 	body, err := catalogBreaker.Execute(func() (interface{}, error) {
-		reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
 
 		req, err := http.NewRequestWithContext(reqCtx, "GET",
@@ -245,6 +244,21 @@ func createOrder(w http.ResponseWriter, r *http.Request) {
 			"error":   "missing_idempotency_key",
 			"message": "Заголовок Idempotency-Key обязателен",
 		})
+		return
+	}
+
+	var existingOrder OrderResponse
+	err := db.QueryRow(ctx,
+		`SELECT order_id, status, total_amount, created_at 
+		 FROM orders WHERE idempotency_key = $1`,
+		idemKey,
+	).Scan(&existingOrder.OrderID, &existingOrder.Status, &existingOrder.TotalAmount, &existingOrder.CreatedAt)
+
+	if err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Idempotency-Replay", "true")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(existingOrder)
 		return
 	}
 

@@ -88,7 +88,7 @@ services:
       resources:
         limits:
           cpus: "0.70"
-          memory: 400M
+          memory: 800M
     restart: unless-stopped
 
   redis:
