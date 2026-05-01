@@ -83,7 +83,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Unable to parse database URL:", err)
 	}
-	config.MaxConns = 15
+	config.MaxConns = 20
 	config.MinConns = 5
 	config.MaxConnLifetime = 30 * time.Minute
 
@@ -107,21 +107,23 @@ func main() {
 		Addr:         redisURL,
 		Password:     "",
 		DB:           0,
-		PoolSize:     10,
+		PoolSize:     20,
 		MinIdleConns: 5,
 	})
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
-		log.Println("Warning: Redis not available")
+		log.Fatal("Unable to connect to Redis:", err)
 	}
+	log.Println("Connected to Redis")
 
 	catalogServiceURL = os.Getenv("CATALOG_SERVICE_URL")
 	if catalogServiceURL == "" {
 		catalogServiceURL = "http://localhost:8081"
 	}
 
+	// HTTP клиент с таймаутом
 	httpClient = &http.Client{
-		Timeout: 3 * time.Second,
+		Timeout: 2 * time.Second,
 		Transport: &http.Transport{
 			MaxIdleConns:        20,
 			MaxIdleConnsPerHost: 10,
@@ -129,29 +131,34 @@ func main() {
 		},
 	}
 
+	// Circuit Breaker для catalog service (паттерн Circuit Breaker)
 	catalogBreaker = gobreaker.NewCircuitBreaker(gobreaker.Settings{
 		Name:        "catalog-service",
-		MaxRequests: 5,
+		MaxRequests: 3,
 		Interval:    10 * time.Second,
 		Timeout:     5 * time.Second,
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
 			failureRatio := float64(counts.TotalFailures) / float64(counts.Requests)
-			return counts.Requests >= 10 && failureRatio >= 0.5
+			return counts.Requests >= 5 && failureRatio >= 0.5
 		},
 		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
 			log.Printf("Circuit Breaker '%s' changed from %s to %s", name, from, to)
 		},
 	})
 
+	// Запускаем outbox worker в фоне
 	go startOutboxWorker()
 
 	r := chi.NewRouter()
+
+	// Middleware
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(5 * time.Second))
 
+	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -161,6 +168,7 @@ func main() {
 		})
 	})
 
+	// API endpoints
 	r.Post("/api/v1/orders", createOrder)
 	r.Get("/api/v1/orders/{orderID}", getOrderStatus)
 
@@ -174,8 +182,10 @@ func main() {
 }
 
 func validateMenuItems(ctx context.Context, restaurantID string, items []OrderItemReq) (map[string]MenuItem, error) {
+	// Используем Circuit Breaker (паттерн Circuit Breaker + Timeout)
 	body, err := catalogBreaker.Execute(func() (interface{}, error) {
-		reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		// Timeout для HTTP-запроса (паттерн Timeout)
+		reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
 
 		req, err := http.NewRequestWithContext(reqCtx, "GET",
@@ -218,7 +228,6 @@ func validateMenuItems(ctx context.Context, restaurantID string, items []OrderIt
 
 func createOrder(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	var req CreateOrderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -248,14 +257,27 @@ func createOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cacheKey := fmt.Sprintf("idem:%s", idemKey)
+	cached, err := rdb.Get(ctx, cacheKey).Result()
+	if err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Idempotency-Replay", "true")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(cached))
+		return
+	}
+
 	var existingOrder OrderResponse
-	err := db.QueryRow(ctx,
+	err = db.QueryRow(ctx,
 		`SELECT order_id, status, total_amount, created_at 
 		 FROM orders WHERE idempotency_key = $1`,
 		idemKey,
 	).Scan(&existingOrder.OrderID, &existingOrder.Status, &existingOrder.TotalAmount, &existingOrder.CreatedAt)
 
 	if err == nil {
+		data, _ := json.Marshal(existingOrder)
+		rdb.Set(ctx, cacheKey, data, 24*time.Hour)
+
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("X-Idempotency-Replay", "true")
 		w.WriteHeader(http.StatusOK)
@@ -287,6 +309,7 @@ func createOrder(w http.ResponseWriter, r *http.Request) {
 		totalAmount += menuItem.Price * item.Quantity
 	}
 
+	// Транзакционная запись + outbox (паттерн Transactional Outbox)
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		log.Printf("Error beginning transaction: %v", err)
@@ -334,6 +357,7 @@ func createOrder(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Outbox: создаём событие OrderCreated
 	outboxPayload, _ := json.Marshal(map[string]interface{}{
 		"order_id":      orderID,
 		"restaurant_id": req.RestaurantID,
@@ -352,6 +376,7 @@ func createOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Коммитим транзакцию
 	if err := tx.Commit(ctx); err != nil {
 		log.Printf("Error committing transaction: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -364,6 +389,10 @@ func createOrder(w http.ResponseWriter, r *http.Request) {
 		TotalAmount: totalAmount,
 		CreatedAt:   createdAt.Format(time.RFC3339),
 	}
+	data, _ := json.Marshal(order)
+	rdb.Set(ctx, cacheKey, data, 24*time.Hour)
+
+	rdb.Set(ctx, fmt.Sprintf("order_status:%s", orderID), "created", 1*time.Hour)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -374,9 +403,13 @@ func getOrderStatus(w http.ResponseWriter, r *http.Request) {
 	orderID := chi.URLParam(r, "orderID")
 	ctx := r.Context()
 
+	status, err := rdb.Get(ctx, fmt.Sprintf("order_status:%s", orderID)).Result()
+	if err == nil {
+		w.Header().Set("X-Cache-Status", "HIT")
+	}
 
 	var order OrderStatusResponse
-	err := db.QueryRow(ctx,
+	err = db.QueryRow(ctx,
 		`SELECT order_id, status FROM orders WHERE order_id = $1`,
 		orderID,
 	).Scan(&order.OrderID, &order.Status)
@@ -407,12 +440,17 @@ func getOrderStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if status == "" {
+		rdb.Set(ctx, fmt.Sprintf("order_status:%s", orderID), order.Status, 1*time.Hour)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(order)
 }
 
 func startOutboxWorker() {
 	log.Println("Starting outbox worker")
+
 	time.Sleep(5 * time.Second)
 
 	for {
@@ -420,6 +458,7 @@ func startOutboxWorker() {
 
 		ctx := context.Background()
 
+		// Выбираем неопубликованные события (Retry with Backoff паттерн через created_at)
 		rows, err := db.Query(ctx,
 			`SELECT event_id, event_type, payload 
 			 FROM outbox_events 
@@ -438,17 +477,20 @@ func startOutboxWorker() {
 			var payload []byte
 
 			if err := rows.Scan(&eventID, &eventType, &payload); err != nil {
+				log.Printf("Error scanning outbox event: %v", err)
 				continue
 			}
 
 			var prettyJSON bytes.Buffer
 			json.Indent(&prettyJSON, payload, "", "  ")
+			log.Printf("Publishing event %s: %s\n%s", eventType, eventID, prettyJSON.String())
 
 			_, err = db.Exec(ctx,
 				`UPDATE outbox_events SET published = true WHERE event_id = $1`,
 				eventID,
 			)
 			if err != nil {
+				log.Printf("Error marking event as published: %v", err)
 				continue
 			}
 			count++
