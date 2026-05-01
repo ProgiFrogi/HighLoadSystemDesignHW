@@ -64,8 +64,8 @@ func main() {
 	if err != nil {
 		log.Fatal("Unable to parse database URL:", err)
 	}
-	config.MaxConns = 2   // УМЕНЬШЕНО для Iter0
-	config.MinConns = 1
+	config.MaxConns = 15  // Iter1: УВЕЛИЧЕНО с 2 до 15
+	config.MinConns = 5   // Iter1: УВЕЛИЧЕНО с 1 до 5
 	config.MaxConnLifetime = 30 * time.Minute
 
 	db, err = pgxpool.NewWithConfig(ctx, config)
@@ -88,9 +88,9 @@ func main() {
 		Addr:         redisURL,
 		Password:     "",
 		DB:           0,
-		PoolSize:     2,        // УМЕНЬШЕНО
-		MinIdleConns: 1,
-		MaxRetries:   1,
+		PoolSize:     10,       // Iter1: УВЕЛИЧЕНО
+		MinIdleConns: 5,
+		MaxRetries:   3,
 	})
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
@@ -129,7 +129,7 @@ func getMenu(w http.ResponseWriter, r *http.Request) {
 	restaurantID := chi.URLParam(r, "restaurantID")
 	ctx := r.Context()
 
-	// Iter0: БЕЗ КЕША — сразу в БД
+	// Iter1: БЕЗ КЕША — сразу в БД
 	var menu MenuResponse
 	err := db.QueryRow(ctx,
 		`SELECT restaurant_id, name FROM restaurants WHERE restaurant_id = $1 AND is_open = true`,
@@ -259,7 +259,6 @@ func searchRestaurants(w http.ResponseWriter, r *http.Request) {
 		var rest Restaurant
 		var distance float64
 		if err := rows.Scan(&rest.ID, &rest.Name, &rest.Rating, &rest.Cuisine, &rest.IsOpen, &distance); err != nil {
-			log.Printf("Error scanning: %v", err)
 			continue
 		}
 		rest.Distance = math.Round(distance*100) / 100
