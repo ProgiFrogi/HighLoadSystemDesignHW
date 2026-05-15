@@ -64,7 +64,7 @@
 | Redis | приватный endpoint | **6379** (HTTPS) |
 | Kafka | bootstrap в VPC | **9092** |
 
-**Сеть:** VPC `10.0.0.0/16`; подсети по AZ: `10.1.0.0/24` (AZ-A), `10.1.1.0/24` (AZ-B). **Static IP:** VIP балансировщика/DNS — фиксированный для клиентов и интеграций; IP подов - не фиксируем.
+**Сеть:** VPC `10.0.0.0/16`; подсети по AZ: `10.1.0.0/24` (AZ-A), `10.1.1.0/24` (AZ-B). **Static IP:** VIP балансировщика/DNS - фиксированный для клиентов и интеграций; IP подов - не фиксируем.
 
 ---
 
@@ -82,7 +82,7 @@
 |--------|------------|--------|
 | **catalog-service**, **order-service**, **tracking-service**, **notification-service** | **RollingUpdate** (maxUnavailable=0, maxSurge=1) | Stateless; Rolling даёт непрерывность при репликах в **AZ-A** и **AZ-B**. |
 | **API Gateway** | **RollingUpdate** | Edge в public zone; критично держать min реплик в обеих зонах, пока DNS/Balancer направляет трафик. |
-| **payment-service** | **Canary** (10% → 50% → 100% по метрикам ошибок/latency) | Денежный контур и интеграции с PSP; снижаем blast radius при регрессии. |
+| **payment-service** | **Canary** (10% -> 50% -> 100% по метрикам ошибок/latency) | Денежный контур и интеграции с PSP; снижаем blast radius при регрессии. |
 | **Managed PostgreSQL / Redis / Kafka** | Управляемые rolling-maintenance YC + окна (см. часть 2) | Не Kubernetes Deployment; версии и патчи - по runbook провайдера. |
 
 #### Миграции БД
@@ -197,7 +197,7 @@ Critical path: **клиент -> DNS/Balancer -> API Gateway -> order/catalog ->
 
 *Сумма базы: 65 + 55 + 10 + 25 + 5 + 5 + 15 = **180** тыс руб/мес.*
 
-**Как получены 2× / 5×:** увеличение worker-нод MKS и класса PostgreSQL; Redis - рост RAM (16 → 32 → 64 ГБ); Kafka - больший диск и при 5× третий брокер или s4a-c4-m16; ALB и логи растут слабее (~×1,6 и ~×2,3); monitoring/трафик - ~×1,5 и ~×2,3.
+**Как получены 2× / 5×:** увеличение worker-нод MKS и класса PostgreSQL; Redis - рост RAM (16 -> 32 -> 64 ГБ); Kafka - больший диск и при 5× третий брокер или s4a-c4-m16; ALB и логи растут слабее (~×1,6 и ~×2,3); monitoring/трафик - ~×1,5 и ~×2,3.
 
 ### Операционные затраты (оценка / мес)
 
