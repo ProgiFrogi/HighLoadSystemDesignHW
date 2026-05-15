@@ -1,6 +1,6 @@
 # Deployment Document: Сервис доставки еды (Food Delivery)
 
-Документ описывает целевое production-развёртывание в соответствии с [архитектурой](architecture.md) и [требованиями](requirements.md). PoC в репозитории (Docker Compose: Nginx, catalog, order, PostgreSQL, Redis) покрывает подмножество сервисов; ниже - эксплуатационная модель полной системы.
+Документ описывает целевое production-развёртывание в соответствии с [архитектурой](architecture.md) и [требованиями](requirements.md). PoC в репозитории (Docker Compose: Nginx, catalog, order, PostgreSQL, Redis) покрывает подмножество сервисов, ниже - эксплуатационная модель полной системы.
 
 ---
 
@@ -58,7 +58,7 @@
 
 | Назначение | FQDN / имя | Порт |
 |------------|------------|------|
-| Публичный API | `api.<product>.ru` → DNS/Balancer → API Gateway | **443** (HTTPS / WebSocket) |
+| Публичный API | `api.<product>.ru` -> DNS/Balancer -> API Gateway | **443** (HTTPS / WebSocket) |
 | Внутри кластера | `catalog.food-delivery.svc.cluster.local`, `order.food-delivery.svc.cluster.local`, … | согласованные service ports (REST/gRPC) |
 | PostgreSQL (managed) | primary / replica endpoints в VPC | **6432** (TLS) |
 | Redis | приватный endpoint | **6379** (HTTPS) |
@@ -72,7 +72,7 @@
 
 #### Общие принципы zero-downtime
 
-- **Readiness:** HTTP GET `/ready` (или `/health` с проверкой БД/Redis) - успех только если пул соединений и зависимости доступны; readiness failure → трафик не направляется на под.
+- **Readiness:** HTTP GET `/ready` (или `/health` с проверкой БД/Redis) - успех только если пул соединений и зависимости доступны; readiness failure -> трафик не направляется на под.
 - **Liveness:** `/live` без тяжёлых зависимостей - детект зависших процессов, рестарт пода.
 - **Graceful shutdown:** `terminationGracePeriodSeconds` ≥ 30s; на `SIGTERM` прекращение приёма новых запросов, drain in-flight, закрытие соединений к БД/Redis, завершение outbox-публикации в пределах окна.
 
@@ -103,7 +103,7 @@ Outbox и идемпотентность ([ADR-003](adr/003-idempotency-outbox.m
 
 #### Алерты
 
-Critical path: **клиент → DNS/Balancer → API Gateway → order/catalog → PostgreSQL/Redis** и **оплата → payment → PSP / PostgreSQL**.
+Critical path: **клиент -> DNS/Balancer -> API Gateway -> order/catalog -> PostgreSQL/Redis** и **оплата -> payment -> PSP / PostgreSQL**.
 
 | Сигнал | Метрика | Порог (пример) | Окно | На что смотреть |
 |--------|---------|----------------|------|------------------|
